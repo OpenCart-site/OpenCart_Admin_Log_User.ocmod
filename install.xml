@@ -6,7 +6,6 @@
   <author>opencart.site</author>
   <link>https://opencart.site</link>
 
-
     <file path="admin/controller/setting/setting.php">
         <operation error="log">
             <search><![CDATA[
@@ -79,7 +78,17 @@
 
                 $this->load->model('user/user');
                 $this->load->model('setting/store');
-                $user_info = $this->model_user_user->getUser($this->user->getId());
+
+                if($this->user->getId()) {
+                  $user_info = $this->model_user_user->getUser($this->user->getId());
+                } else {
+                  $user_info = array(
+                    'username' => '',
+                    'user_group' => '',
+                  );
+                }
+
+                
 
                 if(!is_dir($filedir)) {
                   mkdir($filedir, 0777, true);
