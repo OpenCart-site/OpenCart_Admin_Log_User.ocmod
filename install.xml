@@ -1,0 +1,631 @@
+<?xml version="1.0" encoding="utf-8"?>
+<modification>
+  <name>Admin Logger</name>
+  <code>Admin_Logger_oc3</code>
+  <version>1.0</version>
+  <author>opencart.site</author>
+  <link>https://opencart.site</link>
+
+
+    <file path="admin/controller/setting/setting.php">
+        <operation error="log">
+            <search><![CDATA[
+                if (isset($this->request->post['config_file_max_size'])) {
+            ]]></search>
+            <add position="before"><![CDATA[
+            if (isset($this->request->post['config_limit_day_admin_log_access'])) {
+              $data['config_limit_day_admin_log_access'] = $this->request->post['config_limit_day_admin_log_access'];
+            } else {
+              $data['config_limit_day_admin_log_access'] = $this->config->get('config_limit_day_admin_log_access');
+            }
+            ]]></add>
+        </operation>
+    </file>
+
+    <file path="admin/language/en-gb/setting/setting.php">
+        <operation>
+            <search><![CDATA[$_['entry_meta_title']]]></search>
+            <add position="before"><![CDATA[
+                $_['text_limit_day_admin_log_access']    = 'How many days to store logs admin panel';
+            ]]></add>
+        </operation>
+    </file>
+
+    <file path="admin/language/ru-ru/setting/setting.php">
+        <operation>
+            <search><![CDATA[$_['entry_meta_title']]]></search>
+            <add position="before"><![CDATA[
+                $_['text_limit_day_admin_log_access']    = 'Сколько дней хранить логи админ панели';
+            ]]></add>
+        </operation>
+    </file>
+
+    <file path="admin/view/template/setting/setting.twig">
+        <operation error="log">
+            <search><![CDATA[
+                <legend>{{ text_security }}</legend>
+            ]]></search>
+            <add position="after" offset="1"><![CDATA[
+
+                <div class="form-group">
+                  <label class="col-sm-2 control-label" for="input-config_limit_day_admin_log_access">{{ text_limit_day_admin_log_access }}</label>
+                  <div class="col-sm-10">
+                    <input type="text" name="config_limit_day_admin_log_access" value="{{ config_limit_day_admin_log_access }}" id="input-config_limit_day_admin_log_access" class="form-control" />
+                  </div>
+                </div>
+
+            ]]></add>
+        </operation>
+    </file>
+
+    <file path="admin/controller/common/header.php">
+        <operation error="log">
+            <search><![CDATA[return $this->load->view('common/header', $data);]]></search>
+            <add position="after"><![CDATA[
+           
+  }
+        public function admin_log($url){
+
+
+      $http = parse_url($url);
+      parse_str($http['query'], $output);
+      if(isset($output['user_token'])) {
+      unset($output['user_token']);
+      }
+      $url = $http["path"] . '?' . http_build_query($output);
+
+          $filedir = DIR_LOGS.'acces_admin_log';
+          $filename = DIR_LOGS.'acces_admin_log/acces_admin_log('.date ("Y-m-d").').log';
+
+      $this->load->model('user/user');
+      $this->load->model('setting/store');
+      $user_info = $this->model_user_user->getUser($this->user->getId());
+
+      if(!is_dir($filedir)) {
+        mkdir($filedir, 0777, true);
+      }
+
+      if (file_exists($filedir)) {
+      $time_old_delete = $this->config->get('config_limit_day_admin_log_access')*24*60*60;
+        foreach (new DirectoryIterator($filedir) as $fileInfo) {
+          if ($fileInfo->isDot()) {
+          continue;
+          }
+          if ($fileInfo->isFile() && time() - $fileInfo->getCTime() >= $time_old_delete) {
+            unlink($fileInfo->getRealPath());
+          }
+        }
+      }
+
+          if (!file_exists($filename)) {
+            $fp = fopen($filename, "w");
+            fwrite($fp, "");
+            fclose($fp);
+          }
+
+          if (file_exists($filename)) {
+            $date_modific = date ("Y-m-d", filemtime($filename));
+            $now = new DateTime(); 
+            $date = DateTime::createFromFormat("Y-m-d", $date_modific); 
+            $interval = $now->diff($date); 
+
+
+      $url = str_replace("/admin/index.php?", "", $url);
+      $url = str_replace("&", "|", $url);
+      $url = str_replace("%2F", "/", $url);
+
+      $new_entry = 'date='.date ("Y-m-d H:i:s").'|username='.$user_info['username'].'|user_group='.$user_info['user_group'].'|ip='.$_SERVER['REMOTE_ADDR'].'|'.$url;
+
+      $new_entry_array = explode("|", $new_entry);
+
+      $entry = array();
+      $entry['edit'] = "";
+
+      foreach ($new_entry_array as $param_url) {
+        $param_url_array = explode("=", $param_url);
+        $check  = strripos($param_url_array[0], "id");
+        if ($check === false) {
+          $entry[$param_url_array[0]] = $param_url_array[1];
+        } else {
+          $entry['edit'] = $param_url_array[0]."=".$param_url_array[1];
+        }
+        
+      }
+      $this->model_setting_store->AddAdminLogEntryInTable($entry);
+
+      $new_entry .= "\n"; 
+      $fp = fopen($filename, 'a');
+      fwrite($fp, $new_entry);
+      fclose($fp);
+
+
+          }
+            
+          
+
+            ]]></add>
+        </operation>
+        <operation error="log">
+            <search><![CDATA[return $this->load->view('common/header', $data);]]></search>
+            <add position="before"><![CDATA[
+      $this->admin_log($_SERVER['REQUEST_URI']);
+      ]]></add>
+        </operation>
+        <operation error="log">
+            <search><![CDATA[$this->load->model('setting/store');]]></search>
+            <add position="after"><![CDATA[
+      $this->model_setting_store->CheckAndAddAdminLogTable();
+      ]]></add>
+        </operation>
+    </file>
+  
+    <file path="admin/controller/common/column_left.php">
+        <operation error="log">
+            <search><![CDATA[if ($this->user->hasPermission('access', 'tool/log')) {]]></search>
+            <add position="before" offset="1"><![CDATA[
+
+        if ($this->user->hasPermission('access', 'tool/log')) {
+          $maintenance[] = array(
+            'name'     => $this->language->get('text_log_admin'),
+            'href'     => $this->url->link('tool/log/admin', 'user_token=' . $this->session->data['user_token'], true),
+            'children' => array()   
+          );
+        }
+
+            ]]></add>
+        </operation>
+    </file>
+  
+    <file path="admin/language/ru-ru/common/column_left.php">
+        <operation error="log">
+            <search><![CDATA[$_['text_log']                  = 'Журнал ошибок';]]></search>
+            <add position="before" offset="1"><![CDATA[
+
+        $_['text_log_admin']                  = 'Лог действий пользователя';
+
+            ]]></add>
+        </operation>
+    </file>
+  
+    <file path="admin/language/en-gb/common/column_left.php">
+        <operation error="log">
+            <search><![CDATA[$_['text_log']                  = 'Error Logs';]]></search>
+            <add position="before" offset="1"><![CDATA[
+
+        $_['text_log_admin']                  = 'User action log';
+
+            ]]></add>
+        </operation>
+    </file>
+  
+    <file path="admin/model/setting/store.php">
+        <operation error="log">
+            <search><![CDATA[public function getStores($data = array()) {]]></search>
+            <add position="before" offset="1"><![CDATA[
+
+        public function getlogs($data = array()) {
+          if ($data) {
+            $sql = "SELECT * FROM " . DB_PREFIX . "admin_log";
+
+            if (isset($data['sort'])) {
+              $sql .= " ORDER BY " . $data['sort'];
+            } else {
+              $sql .= " ORDER BY date";
+            }
+
+            if (isset($data['order'])) {
+              $sql .= " ".$data['order'];
+            } else {
+              $sql .= " ASC";
+            }
+
+            if (isset($data['start']) || isset($data['limit'])) {
+              if ($data['start'] < 0) {
+                $data['start'] = 0;
+              }
+
+              if ($data['limit'] < 1) {
+                $data['limit'] = 20;
+              }
+
+              $sql .= " LIMIT " . (int)$data['start'] . "," . (int)$data['limit'];
+            }
+
+            $query = $this->db->query($sql);
+
+            return $query->rows;
+          } else {
+            return false;
+          }
+        }
+
+        public function getTotallogs() {
+          $query = $this->db->query("SELECT COUNT(*) AS total FROM " . DB_PREFIX . "admin_log");
+
+          return $query->row['total'];
+        }
+
+        public function AddAdminLogEntryInTable($data) {
+
+          $this->db->query("DELETE FROM " . DB_PREFIX . "admin_log WHERE `date` < DATE_SUB(NOW(), INTERVAL 1 DAY)");
+          $this->db->query("INSERT INTO " . DB_PREFIX . "admin_log SET route = '" . $this->db->escape($data['route']) . "', `username` = '" . $this->db->escape($data['username']) . "', `user_group` = '" . $this->db->escape($data['user_group']) . "', `edit` = '" . $this->db->escape($data['edit']) . "', `date` = '" . $this->db->escape($data['date']) . "', `ip` = '" . $this->db->escape($data['ip']) . "'");
+
+        }
+
+        public function CheckAndAddAdminLogTable() {
+
+          if ($this->mysql_table_seek(DB_PREFIX . "admin_log") == false) {
+            $this->db->query("CREATE TABLE `".DB_PREFIX."admin_log` (`admin_log_id` int(11) NOT NULL AUTO_INCREMENT, `route` varchar(128) NOT NULL, `username` varchar(128) NOT NULL, `user_group` varchar(128) NOT NULL, `edit` varchar(128) NOT NULL, `date` datetime NOT NULL, `ip` varchar(40) NOT NULL, PRIMARY KEY (`admin_log_id`))");
+          }
+
+        }
+
+        public function mysql_table_seek($tablename) {
+
+          $table_list = $this->db->query("SHOW TABLES FROM `".DB_DATABASE."`");
+          $table_list = $table_list->rows;
+          foreach ($table_list as $table) {
+            if ($tablename==$table['Tables_in_'.DB_DATABASE]) {
+              return true;
+            }
+          }
+          return false;
+
+        } 
+
+            ]]></add>
+        </operation>
+    </file>
+  
+    <file path="admin/controller/tool/log.php">
+        <operation>
+            <search><![CDATA[public function index() {]]></search>
+            <add position="after"><![CDATA[
+                $data['default_log'] = '1';
+            ]]></add>
+        </operation>
+        <operation>
+            <search><![CDATA[public function clear() {]]></search>
+            <add position="before"><![CDATA[
+  
+  
+        public function admin() {
+
+          $data['default_log'] = '0';
+
+          $this->load->model('setting/store');
+          $this->load->language('common/column_left');
+
+          $name = $this->language->get('text_log_admin');
+
+          $this->document->setTitle($this->language->get('text_log_admin'));
+
+          $data['heading_title'] = $this->language->get('text_log_admin');
+          $data['text_list'] = $this->language->get('text_log_admin');
+
+          if (isset($this->session->data['error'])) {
+            $data['error_warning'] = $this->session->data['error'];
+
+            unset($this->session->data['error']);
+          } elseif (isset($this->error['warning'])) {
+            $data['error_warning'] = $this->error['warning'];
+          } else {
+            $data['error_warning'] = '';
+          }
+
+          if (isset($this->session->data['success'])) {
+            $data['success'] = $this->session->data['success'];
+
+            unset($this->session->data['success']);
+          } else {
+            $data['success'] = '';
+          }
+
+
+          if (isset($this->request->get['sort'])) {
+            $sort = $this->request->get['sort'];
+          } else {
+            $sort = 'date';
+          }
+
+          if (isset($this->request->get['order'])) {
+            $order = $this->request->get['order'];
+          } else {
+            $order = 'DESC';
+          }
+
+          if (isset($this->request->get['page'])) {
+            $page = $this->request->get['page'];
+          } else {
+            $page = 1;
+          }
+
+          $url = '';
+
+          if (isset($this->request->get['sort'])) {
+            $url .= '&sort=' . $this->request->get['sort'];
+          }
+
+          if (isset($this->request->get['order'])) {
+            $url .= '&order=' . $this->request->get['order'];
+          }
+
+          if (isset($this->request->get['page'])) {
+            $url .= '&page=' . $this->request->get['page'];
+          }
+
+
+          $data['logs'] = array();
+
+          $filter_data = array(
+            'sort'  => $sort,
+            'order' => $order,
+            'start' => ($page - 1) * $this->config->get('config_limit_admin'),
+            'limit' => $this->config->get('config_limit_admin')
+          );
+
+          $log_total = $this->model_setting_store->getTotallogs();
+
+          $results = $this->model_setting_store->getlogs($filter_data);
+
+          foreach ($results as $result) {
+            $data['logs'][] = array(
+              'log_id' => $result['admin_log_id'],
+              'route' => $result['route'],
+              'page' => $this->getPageInfo($result['route']),
+              'username' => $result['username'],
+              'user_group' => $result['user_group'],
+              'edit' => $result['edit'],
+              'date' => $result['date'],
+              'ip' => $result['ip'],
+              'ip_href' => "https://check-host.net/ip-info?host=".$result['ip'],
+              'href_edit' => $this->url->link($result['route'], 'user_token=' . $this->session->data['user_token'] . '&'.$result['edit'], true),
+              'href' => $this->url->link($result['route'], 'user_token=' . $this->session->data['user_token'], true),
+            );
+          }
+
+
+          $url = '';
+
+          if ($order == 'ASC') {
+            $url .= '&order=DESC';
+          } else {
+            $url .= '&order=ASC';
+          }
+
+          if (isset($this->request->get['page'])) {
+            $url .= '&page=' . $this->request->get['page'];
+          }
+
+          $data['sort_route'] = $this->url->link('tool/log/admin', 'user_token=' . $this->session->data['user_token'] . '&sort=route' . $url, true);
+          $data['sort_username'] = $this->url->link('tool/log/admin', 'user_token=' . $this->session->data['user_token'] . '&sort=username' . $url, true);
+          $data['sort_user_group'] = $this->url->link('tool/log/admin', 'user_token=' . $this->session->data['user_token'] . '&sort=user_group' . $url, true);
+          $data['sort_date'] = $this->url->link('tool/log/admin', 'user_token=' . $this->session->data['user_token'] . '&sort=date' . $url, true);
+          $data['sort_ip'] = $this->url->link('tool/log/admin', 'user_token=' . $this->session->data['user_token'] . '&sort=ip' . $url, true);
+          $data['sort_edit'] = $this->url->link('tool/log/admin', 'user_token=' . $this->session->data['user_token'] . '&sort=edit' . $url, true);
+          $data['sort_sort_order'] = $this->url->link('tool/log/admin', 'user_token=' . $this->session->data['user_token'] . '&sort=i.sort_order' . $url, true);
+
+          $url = '';
+
+          if (isset($this->request->get['sort'])) {
+            $url .= '&sort=' . $this->request->get['sort'];
+          }
+
+          if (isset($this->request->get['order'])) {
+            $url .= '&order=' . $this->request->get['order'];
+          }
+
+          $pagination = new Pagination();
+          $pagination->total = $log_total;
+          $pagination->page = $page;
+          $pagination->limit = $this->config->get('config_limit_admin');
+          $pagination->url = $this->url->link('tool/log/admin', 'user_token=' . $this->session->data['user_token'] . $url . '&page={page}', true);
+
+          $data['pagination'] = $pagination->render();
+
+          $data['results'] = sprintf($this->language->get('text_pagination'), ($log_total) ? (($page - 1) * $this->config->get('config_limit_admin')) + 1 : 0, ((($page - 1) * $this->config->get('config_limit_admin')) > ($log_total - $this->config->get('config_limit_admin'))) ? $log_total : ((($page - 1) * $this->config->get('config_limit_admin')) + $this->config->get('config_limit_admin')), $log_total, ceil($log_total / $this->config->get('config_limit_admin')));
+
+          $data['sort'] = $sort;
+          $data['order'] = $order;
+
+
+
+
+          $data['breadcrumbs'] = array();
+
+          $data['breadcrumbs'][] = array(
+            'text' => $this->language->get('text_home'),
+            'href' => $this->url->link('common/dashboard', 'user_token=' . $this->session->data['user_token'], true)
+          );
+
+          $data['breadcrumbs'][] = array(
+            'text' => $this->language->get('text_log_admin'),
+            'href' => $this->url->link('tool/log/admin', 'user_token=' . $this->session->data['user_token'], true)
+          );
+
+          $data['header'] = $this->load->controller('common/header');
+          $data['column_left'] = $this->load->controller('common/column_left');
+          $data['footer'] = $this->load->controller('common/footer');
+
+          $this->response->setOutput($this->load->view('tool/log', $data));
+
+        }
+
+            
+        public function getPageInfo($route) {
+
+          $load_language = str_replace("/edit", "", $route);
+          $load_language = str_replace("/add", "", $load_language);
+          $load_language = str_replace("/info", "", $load_language);
+
+          if ($route == "tool/log/admin") {
+
+            $this->load->language('common/column_left');
+
+            $name = $this->language->get('text_log_admin');
+
+          } else {
+
+            $this->load->language($load_language);
+
+            $name = $this->language->get('heading_title');
+
+            $check1 = strripos($route, "/edit");
+            if ($check1 === false) {
+              $name .= "";
+            } else {
+              $name .= " | ".$this->language->get('text_edit');
+            }
+
+            $check2 = strripos($route, "/add");
+            if ($check2 === false) {
+              $name .= "";
+            } else {
+              $name .= " | ".$this->language->get('text_add');
+            }
+
+            $check3 = strripos($route, "/info");
+            if ($check3 === false) {
+              $name .= "";
+            } else {
+              $name .= " | ".$this->language->get('text_order_detail');
+            }
+
+            if (!$check1 && !$check2 && !$check3) {
+              if ($this->language->get('text_list')) {
+                $name .= " | ".$this->language->get('text_list');
+              } elseif ($this->language->get('text_edit')) {
+                $name .= " | ".$this->language->get('text_edit');
+              } else {
+                $name .= "";
+              }
+            } 
+
+          }
+
+          return $name;
+
+        }
+
+            ]]></add>
+        </operation>
+    </file>
+  
+    <file path="admin/view/template/tool/log.twig">
+        <operation error="log">
+            <search><![CDATA[<textarea wrap="off" rows="15" readonly class="form-control">{{ log }}</textarea>]]></search>
+            <add position="replace" offset="1"><![CDATA[
+
+        {% if default_log == '1' %}
+        <textarea wrap="off" rows="15" readonly class="form-control">{{ log }}</textarea>
+        {% else %}
+          <div class="table-responsive">
+          <table class="table table-bordered table-hover">
+            <thead> 
+            <tr>
+              <td class="text-left">
+                        {% if sort == 'route' %}
+                        <a href="{{ sort_route }}" class="{{ order|lower }}">log.route</a>
+                        {% else %}
+                        <a href="{{ sort_route }}">log.route</a>
+                        {% endif %}
+              </td>
+              <td class="text-left">
+                        {% if sort == 'route' %}
+                        <a href="{{ sort_route }}" class="{{ order|lower }}">log.page</a>
+                        {% else %}
+                        <a href="{{ sort_route }}">log.page</a>
+                        {% endif %}
+              </td>
+              <td class="text-left">
+                        {% if sort == 'username' %}
+                        <a href="{{ sort_username }}" class="{{ order|lower }}">log.username</a>
+                        {% else %}
+                        <a href="{{ sort_username }}">log.username</a>
+                        {% endif %}
+              </td>
+              <td class="text-left">
+                        {% if sort == 'user_group' %}
+                        <a href="{{ sort_user_group }}" class="{{ order|lower }}">log.user_group</a>
+                        {% else %}
+                        <a href="{{ sort_user_group }}">log.user_group</a>
+                        {% endif %}
+              </td>
+              <td class="text-left">
+                        {% if sort == 'date' %}
+                        <a href="{{ sort_date }}" class="{{ order|lower }}">log.date</a>
+                        {% else %}
+                        <a href="{{ sort_date }}">log.date</a>
+                        {% endif %}
+              </td>
+              <td class="text-left">
+                        {% if sort == 'ip' %}
+                        <a href="{{ sort_ip }}" class="{{ order|lower }}">log.ip</a>
+                        {% else %}
+                        <a href="{{ sort_ip }}">log.ip</a>
+                        {% endif %}
+              </td>
+              <td class="text-center">
+                        {% if sort == 'edit' %}
+                        <a href="{{ sort_edit }}" class="{{ order|lower }}">log.edit</a>
+                        {% else %}
+                        <a href="{{ sort_edit }}">log.edit</a>
+                        {% endif %}
+              </td>
+            </tr>
+            </thead>
+            <tbody>
+            {% if logs %}
+            {% for log in logs %}
+            <tr>
+              <td class="text-left">{{ log.route }}</td>
+              <td class="text-left">{{ log.page }}</td>
+              <td class="text-left">{{ log.username }}</td>
+              <td class="text-left">{{ log.user_group }}</td>
+              <td class="text-left">{{ log.date }}</td>
+              <td class="text-left">
+                <a href="{{ log.ip_href }}" target="_blank" >{{ log.ip }}</a>
+              </td>
+              <td class="text-center">
+                  {% if log.edit %}
+                            <div class="btn-group"> 
+                              <a href="{{ log.href_edit }}" target="_blank" data-toggle="tooltip" title="{{ log.page }} - {{ log.edit }}" class="btn btn-primary"><i class="fa fa-eye"></i></a>
+                            </div>
+                            {% else %}
+                            <div class="btn-group"> 
+                              <a href="{{ log.href }}" target="_blank" data-toggle="tooltip" title="{{ log.page }}" class="btn btn-primary"><i class="fa fa-eye"></i></a>
+                            </div>
+                            {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+            {% else %}
+            <tr>
+              <td class="text-center" colspan="4">{{ text_no_results }}</td>
+            </tr>
+            {% endif %}
+            </tbody>
+          </table>
+          </div>
+        {% endif %}
+
+            <div class="row">
+              <div class="col-sm-6 text-left">{{ pagination }}</div>
+              <div class="col-sm-6 text-right">{{ results }}</div>
+            </div>
+
+            ]]></add>
+        </operation>
+        <operation error="log">
+            <search><![CDATA[<div class="pull-right">]]></search>
+            <add position="replace"><![CDATA[
+      {% if default_log == '1' %}
+        <div class="pull-right">
+      {% else %}
+        <div class="pull-right" style="display:none;">
+      {% endif %}
+      ]]></add>
+        </operation>
+    </file>
+
+</modification>
